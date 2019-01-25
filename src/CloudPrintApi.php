@@ -25,6 +25,7 @@ class CloudPrintApi
 	private $callback_uri;
 	private $configDefaults = [
 		'access_type' => 'offline',
+	    'authType' => 'token',
 	    'approval_prompt' => 'force',
 	    'scopes' => [
 	    	"https://www.googleapis.com/auth/cloudprint"
@@ -95,7 +96,11 @@ class CloudPrintApi
 
 	public function authenticate() {
 		$this->authorization_code = $_GET['code'];
-		$this->client->fetchAccessTokenWithAssertion();
+		if ($this->config['authType'] == 'token') {
+		    $this->client->fetchAccessTokenWithAuthCode($this->authorization_code);
+		} else {
+    		$this->client->fetchAccessTokenWithAssertion();
+		}
 		$this->refresh_token = $this->client->getRefreshToken();
 		$this->storage->saveRefreshToken($this->refresh_token);
 	}
@@ -111,7 +116,11 @@ class CloudPrintApi
 	public function getAccessToken() {
 
 		if($this->client->isAccessTokenExpired()) {
-			$this->client->fetchAccessTokenWithAssertion();
+		    if ($this->config['authType'] == 'token') {
+		        $this->client->fetchAccessTokenWithRefreshToken($this->getRefreshToken());
+		    } else {
+    			$this->client->fetchAccessTokenWithAssertion();
+		    }
 		}
 
 		if ( ! ($accessToken = $this->client->getAccessToken())) {
@@ -154,8 +163,8 @@ class CloudPrintApi
 		return $this->baseHttpClient;
 	}
 
-	protected function getResponse() {
-		return json_decode($this->response->getBody());
+	protected function getResponse($array = false) {
+		return json_decode($this->response->getBody(), $array);
 	}
 
 	public function post($service, $data = [], $headers = []) {
@@ -180,10 +189,10 @@ class CloudPrintApi
 		return $this->response;
 	}
 
-	public function search($query = '', $data = []) {
+	public function search($query = '', $data = [], $array = false) {
 		$data['q'] = $query;
 		$this->response = $this->post('search', $data);
-		return $this->getResponse();
+		return $this->getResponse($array);
 	}
 
 	public function printers($proxy, $extra_fields = '') {
